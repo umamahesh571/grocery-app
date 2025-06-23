@@ -1,0 +1,147 @@
+version: '3.8'
+
+services:
+  # Frontend Service
+  frontend:
+    build: .
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+    networks:
+      - grocery-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # User Service (Mock)
+  user-service:
+    image: node:18-alpine
+    ports:
+      - "3001:3000"
+    environment:
+      - PORT=3000
+      - DB_HOST=user-db
+      - DB_NAME=users
+    networks:
+      - grocery-network
+    volumes:
+      - ./microservices/user-service:/app
+    working_dir: /app
+    command: npm start
+
+  # Product Service (Mock)
+  product-service:
+    image: node:18-alpine
+    ports:
+      - "3002:3000"
+    environment:
+      - PORT=3000
+      - DB_HOST=product-db
+      - DB_NAME=products
+    networks:
+      - grocery-network
+    volumes:
+      - ./microservices/product-service:/app
+    working_dir: /app
+    command: npm start
+
+  # Cart Service (Mock)
+  cart-service:
+    image: node:18-alpine
+    ports:
+      - "3003:3000"
+    environment:
+      - PORT=3000
+      - REDIS_HOST=redis
+    networks:
+      - grocery-network
+    volumes:
+      - ./microservices/cart-service:/app
+    working_dir: /app
+    command: npm start
+
+  # Order Service (Mock)
+  order-service:
+    image: node:18-alpine
+    ports:
+      - "3004:3000"
+    environment:
+      - PORT=3000
+      - DB_HOST=order-db
+      - DB_NAME=orders
+    networks:
+      - grocery-network
+    volumes:
+      - ./microservices/order-service:/app
+    working_dir: /app
+    command: npm start
+
+  # Databases
+  user-db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=users
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+    networks:
+      - grocery-network
+
+  product-db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=products
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - product-db-data:/var/lib/postgresql/data
+    networks:
+      - grocery-network
+
+  order-db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=orders
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+    networks:
+      - grocery-network
+
+  # Redis for cart and session management
+  redis:
+    image: redis:7-alpine
+    networks:
+      - grocery-network
+    volumes:
+      - redis-data:/data
+
+  # API Gateway (nginx)
+  api-gateway:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx-gateway.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - user-service
+      - product-service
+      - cart-service
+      - order-service
+    networks:
+      - grocery-network
+
+volumes:
+  user-db-data:
+  product-db-data:
+  order-db-data:
+  redis-data:
+
+networks:
+  grocery-network:
+    driver: bridge
